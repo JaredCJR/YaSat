@@ -1,0 +1,18 @@
+b solver
+b back_tracking
+b update_two_watching_literal
+watch update_available_table_flag
+
+define pDecision
+    p "p2decision->variable.var_name"
+    p p2decision->variable.var_name
+    p "p2decision->variable.value"
+    p p2decision->variable.value
+    p/x p2decision->mode
+end
+
+command 3
+pDecision
+end
+
+start

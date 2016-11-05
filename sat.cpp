@@ -4,6 +4,7 @@
 #include <vector>
 #include <cstdlib>
 #include <time.h>
+#include <math.h>
 #include "sat.h"
 using namespace std;
 
@@ -34,6 +35,12 @@ vector<int> var_postive_watched_clause_table[MAX_VAR_COUNT];//use var_name to re
 vector<int> var_negative_watched_clause_table[MAX_VAR_COUNT];
 vector<decision*> decision_queue;
 vector<decision*> record_decided_decision;
+#define MAGIC_DECISION 0x78123456
+uint32_t first_decision_var = MAGIC_DECISION;
+bool end_solving = false;
+
+
+static bool verify_result(void);
 
 static bool var_exist(int var)
 {
@@ -135,99 +142,37 @@ void init_solver(void)
         }
     }
 }
-/*
-static void print_watched_var_clause(void)
-{
-    for(uint32_t i = start_var_table_idx;i < end_var_table_idx;i++)
-    {
-        cout << "var:" << i << "=============================================================" << endl;
-        cout << "postive watched clause:" << endl;
-        for(uint32_t j = 0;j < var_postive_watched_clause_table[i].size();j++)
-        {
-            cout << var_postive_watched_clause_table[i][j] << " " ;
-        }
-        cout << endl;
-        cout << "negative watched clause:" << endl;
-        for(uint32_t j = 0;j < var_negative_watched_clause_table[i].size();j++)
-        {
-            cout << var_negative_watched_clause_table[i][j] << " " ;
-        }
-        cout << endl;
-    }
-}
-*/
 
-static void update_available_table(void)
-{
-    uint32_t available_encoding;
-    available_table.clear();
-    //create available_table
-    for(uint32_t i = start_var_table_idx;i < end_var_table_idx;i++)
-    {
-        if(var_table[i].value == VAL_UNASSIGNED)
-        {
-       	    for(uint32_t j = 0;j < var_postive_watched_clause_table[i].size();j++)
-       	    {
-           	    available_encoding = 
-                    (var_postive_watched_clause_table[i][j] << AVAILABLE_CLAUSE_SHIFT) | 
-                    (i << AVAILABLE_VAR_SHIFT);
-                available_table.push_back(available_encoding);
-            }
-            for(uint32_t j = 0;j < var_negative_watched_clause_table[i].size();j++)
-            {
-           	    available_encoding = 
-                    (AVAILABLE_CLAUSE_NEGATIVE_BIT) |
-                    (var_negative_watched_clause_table[i][j] << AVAILABLE_CLAUSE_SHIFT) | 
-                    (i << AVAILABLE_VAR_SHIFT);
-                available_table.push_back(available_encoding);
-            }
-        }
-    }
-}
 
 /*return true if successful*/
 static bool make_decision(void)
 {
-    uint32_t choosed_encoding;
-    uint32_t choosed_idx;
-    int value;
-    uint32_t finish_idx = 0;
-    if(update_available_table_flag)//if the previous decision does not have any watching clause,the decision will be repeated
+    uint32_t current_decision;
+    bool result = false;
+    for(uint32_t i = start_var_table_idx;i < end_var_table_idx;i++)
     {
-        update_available_table_flag = false;
-        update_available_table();
+        if(var_table[i].value == VAL_UNASSIGNED)
+        {
+            result = true;
+            current_decision = i;
+            if(first_decision_var == MAGIC_DECISION)
+            {
+                first_decision_var = i;//if back track to this var,UNSAT
+            }
+            break;
+        }
     }
-    if(available_table.empty())
+    if(result)
+    {
+        add_decision_queue(var_table[current_decision].var_name,VAL_0,DECISION_MODE);
+    }else
     {
         return false;
     }
-    choosed_idx = rand() % available_table.size();
-    choosed_encoding = available_table[choosed_idx];
-    while(var_table[choosed_encoding & AVAILABLE_VAR_MASK].value != VAL_UNASSIGNED)
+    if(end_solving)
     {
-        if(choosed_idx == (available_table.size()-1))
-        {
-            choosed_idx = 0;
-        }else
-        {
-            choosed_idx++;
-        }
-        choosed_encoding = available_table[choosed_idx];
-        finish_idx++;
-        if(finish_idx == available_table.size())
-        {
-            return false;
-        }
+        return false;
     }
-    available_table.erase(available_table.begin()+choosed_idx);
-    if(choosed_encoding & AVAILABLE_CLAUSE_NEGATIVE_BIT)
-    {
-        value = VAL_0;
-    }else
-    {
-        value = VAL_1;
-    }
-    add_decision_queue(choosed_encoding & AVAILABLE_VAR_MASK,value,DECISION_MODE);
     return true;
 }
 
@@ -293,7 +238,7 @@ static inline int get_var_name_in_clause(uint32_t clause_idx,uint32_t var_idx)
 }
 
 //for case 3 specifically
-static inline bool is_unit_clause_new(uint32_t clause_idx)
+static inline bool is_unit_clause(uint32_t clause_idx)
 {
     bool result = false;
     for(uint32_t i = 0;i < input_clause[clause_idx].size();i++)
@@ -340,25 +285,6 @@ static inline bool is_input_clause_var_postive(uint32_t clause_idx,uint32_t var_
     }
 }
 
-static inline bool is_unit_clause(uint32_t var_name,uint32_t clause_idx)
-{
-    assert(var_table[var_name].value != VAL_UNASSIGNED);
-    if(is_input_clause_var_postive(clause_idx,var_name))// postive clause
-    {
-        if(var_table[var_name].value == VAL_1)
-        {
-            return true;
-        }
-    }else//negative clause
-    {
-        if(var_table[var_name].value == VAL_0)
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
 static void back_tracking(void)
 {
     uint32_t last_var_1,last_var_2;
@@ -385,7 +311,11 @@ static void back_tracking(void)
 
             assert(last_var_1 == last_var_2);
             var_table[last_var_1].value = VAL_UNASSIGNED;
-    
+            if(last_var_1 == first_decision_var)
+            {
+                end_solving = true;
+            }
+
             if(!record_decided_decision.empty())
             {
                 //get var until it is not UNIQUE_MODE
@@ -529,9 +459,9 @@ static void update_two_watching_literal(decision *p2decision)
             i--;//due to remove one clause,the idx need to remain same;
             loop_size = (uint32_t)need_new_decision_clause_list->size();//update loop size
 
-            //update_available_table_flag = true;
         }else if(var_table[the_other_watched_var].value == VAL_UNASSIGNED)//case 2
         {
+            /*
             int value = VAL_UNASSIGNED;
             if(is_input_clause_var_postive(current_clause,the_other_watched_var))
             {
@@ -541,9 +471,8 @@ static void update_two_watching_literal(decision *p2decision)
                 value = VAL_0;
             }
             add_decision_queue(the_other_watched_var,value,UNIQUE_MODE);
-            //update_available_table_flag = true;
-        //}else if( is_unit_clause(the_other_watched_var,current_clause))//case 3
-        }else if( is_unit_clause_new(current_clause))//case 3
+            */
+        }else if( is_unit_clause(current_clause))//case 3
         {
             //do nothing
             continue;
@@ -619,7 +548,7 @@ static bool verify_result(void)
                 {
                     clause_result = true;
                 }
-            }else
+            }else//unassigned
             {
                 result = false;
             }
@@ -699,7 +628,7 @@ int main(int argc,char *argv[])
     solver();
 
     /*clean up*/
-    assert(decision_queue.empty());
+    //assert(decision_queue.empty());
     while(!record_decided_decision.empty())
     {
         free(record_decided_decision.back());

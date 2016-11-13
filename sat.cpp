@@ -195,32 +195,8 @@ static bool make_decision(void)
                      first_decision_var = i;//if back track to this var,UNSAT
                 }
                 break;
-
-                /*
-                //unassigned + watched + unpicked
-                for(uint32_t j = 0;j < unpicked_table.size();j++)
-                {
-                    if(unpicked_table[j] == var_table[i].var_name)
-                    {
-                        var = var_table[i].var_name;
-                        unpicked_table.erase(unpicked_table.begin()+j);
-                        if(first_decision_var == MAGIC_DECISION)
-                        {
-                            first_decision_var = i;//if back track to this var,UNSAT
-                        }
-                        end_loop = true;
-                        break;
-                    }
-                }
-                */
             }
         }
-        /*
-        if(end_loop)
-        {
-            break;
-        }
-        */
     }
     if(var == UNDECIDED_VAR_NAME)
     {
@@ -473,8 +449,6 @@ static void back_tracking(void)
             {
                 end_solving = true;
                 return;
-                //fprintf(stderr,"back tracking error\n");
-                //exit(EXIT_FAILURE);
             }
         }
     }
@@ -707,7 +681,6 @@ int main(int argc,char *argv[])
     solver();
 
     /*clean up*/
-    //assert(decision_queue.empty());
     while(!record_decided_decision.empty())
     {
         free(record_decided_decision.back());

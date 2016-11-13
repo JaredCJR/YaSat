@@ -1,7 +1,6 @@
 b solver
 b back_tracking
 b update_two_watching_literal
-watch update_available_table_flag
 
 define pDecision
     p "p2decision->variable.var_name"

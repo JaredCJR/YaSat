@@ -1,11 +1,10 @@
 # A template C++ Makefile for your SAT solver.
 
 # Debugging flags
-#FLAGS=-Wall -Wold-style-cast -Wformat=2 -ansi -pedantic -ggdb3 \
--DDEBUG
+#FLAGS=-Wall -O0 -g3 -std=c++14
 
 # Optimizing flags
-FLAGS=-Wall -O0 -g3 -std=c++14
+FLAGS=-Wall -O2 -std=c++14
 
 # List all the .o files you need to build here
 OBJS=parser.o sat.o
@@ -26,7 +25,7 @@ test: $(EXENAME)
 	./yasat benchmarks/UNSAT/tiny/rand5_30.cnf
 
 gdb: $(EXENAME)
-	gdbtui -x gdb.txt --args  ./yasat benchmarks/SAT/sanity/sanity2.cnf
+	gdbtui -x gdb.txt --args  ./yasat benchmarks/UNSAT/sanity/sanity4.cnf
 
 
 # The "phony" `clean' compilation target.  Type `make clean' to remove

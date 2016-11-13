@@ -5,10 +5,11 @@
 #include <cstdlib>
 #include <time.h>
 #include <math.h>
+#include <algorithm>
 #include "sat.h"
 using namespace std;
 
-#define MAX_VAR_COUNT                 (150+1)//max:150,if > 255,need to modify AVAILABLE_VAR_MASK
+#define MAX_VAR_COUNT                 1000//max:1000
 #define start_var_table_idx                1
 #define end_var_table_idx    (max_var_name+1)
 #define UNIQUE_MODE                      0xF
@@ -21,8 +22,8 @@ using namespace std;
 #define AVAILABLE_VAR_MASK              0xFF
 //#define AVAILABLE_CLAUSE_NEGATIVE_BIT    0x800000000
 #define AVAILABLE_CLAUSE_NEGATIVE_BIT    0xFF000000
-vector<uint32_t> available_table;
-volatile bool update_available_table_flag = true;
+vector<uint32_t> unpicked_table;
+bool CONFLICT_IN_ADD_DECISION = false;
 
 #define FAILED_FIND_POSSIBLE_TARGET       -1
 
@@ -41,6 +42,7 @@ bool end_solving = false;
 
 
 static bool verify_result(void);
+static void back_tracking(void);
 
 static bool var_exist(int var)
 {
@@ -71,6 +73,10 @@ void build_var_table(void)
             }
         }
     }
+    for(uint32_t i = start_var_table_idx;i < end_var_table_idx;i++)
+    {
+        unpicked_table.push_back(i);
+    }
 }
 
 static void init_two_watching_literal(uint32_t var_name,uint32_t src_idx,uint32_t clause_idx)
@@ -87,7 +93,28 @@ static void init_two_watching_literal(uint32_t var_name,uint32_t src_idx,uint32_
 
 static inline void add_decision_queue(uint32_t var_name,int value,int mode)
 {
+    CONFLICT_IN_ADD_DECISION = false;
     assert(value != VAL_UNASSIGNED);
+    for(uint32_t i = 0;i < decision_queue.size();i++)
+    {
+        if(decision_queue[i]->variable.var_name == var_name)
+        {
+            if(decision_queue[i]->variable.value != value)
+            {
+                for(uint32_t j = 0;j < decision_queue.size();j++)
+                {
+                    free(decision_queue[j]);
+                }
+                decision_queue.clear();
+                back_tracking();
+                CONFLICT_IN_ADD_DECISION = true;
+                return;
+            }else
+            {
+                return;
+            }
+        }
+    }
     decision *p2decision = (decision*)malloc(sizeof(decision));
     p2decision->variable.var_name = var_name;
     p2decision->variable.value = value;
@@ -147,32 +174,66 @@ void init_solver(void)
 /*return true if successful*/
 static bool make_decision(void)
 {
-    uint32_t current_decision;
-    bool result = false;
-    for(uint32_t i = start_var_table_idx;i < end_var_table_idx;i++)
-    {
-        if(var_table[i].value == VAL_UNASSIGNED)
-        {
-            result = true;
-            current_decision = i;
-            if(first_decision_var == MAGIC_DECISION)
-            {
-                first_decision_var = i;//if back track to this var,UNSAT
-            }
-            break;
-        }
-    }
-    if(result)
-    {
-        add_decision_queue(var_table[current_decision].var_name,VAL_0,DECISION_MODE);
-    }else
-    {
-        return false;
-    }
+    int var = UNDECIDED_VAR_NAME;
+    vector<int>::iterator it;
+    int value;
     if(end_solving)
     {
         return false;
     }
+    for(int i = (int)start_var_table_idx;i < (int)end_var_table_idx;i++)
+    {
+        //unassigned
+        if(var_table[i].value == VAL_UNASSIGNED)
+        {
+            //unassigned + watched
+            if((var_postive_watched_clause_table[i].size() + var_negative_watched_clause_table[i].size()) > 0)
+            {
+                var = var_table[i].var_name;
+                if(first_decision_var == MAGIC_DECISION)
+                {
+                     first_decision_var = i;//if back track to this var,UNSAT
+                }
+                break;
+
+                /*
+                //unassigned + watched + unpicked
+                for(uint32_t j = 0;j < unpicked_table.size();j++)
+                {
+                    if(unpicked_table[j] == var_table[i].var_name)
+                    {
+                        var = var_table[i].var_name;
+                        unpicked_table.erase(unpicked_table.begin()+j);
+                        if(first_decision_var == MAGIC_DECISION)
+                        {
+                            first_decision_var = i;//if back track to this var,UNSAT
+                        }
+                        end_loop = true;
+                        break;
+                    }
+                }
+                */
+            }
+        }
+        /*
+        if(end_loop)
+        {
+            break;
+        }
+        */
+    }
+    if(var == UNDECIDED_VAR_NAME)
+    {
+        return false;
+    }
+    if(var_postive_watched_clause_table[var].size() > 0)
+    {
+        value = VAL_1;
+    }else
+    {
+        value = VAL_0;
+    }
+    add_decision_queue((uint32_t)var,value,DECISION_MODE);
     return true;
 }
 
@@ -232,7 +293,23 @@ static inline int find_unwatched_unassigned_var(uint32_t watched_var_1,uint32_t 
     return UNDECIDED_VAR_NAME;
 }
 
-static inline int get_var_name_in_clause(uint32_t clause_idx,uint32_t var_idx)
+//There are many strategies,now simply return the first one.
+static inline int find_watched_unassigned_var()
+{
+    for(uint32_t i = start_var_table_idx;i < end_var_table_idx;i++)
+    {
+        if(var_table[i].value == VAL_UNASSIGNED)
+        {
+            if((var_postive_watched_clause_table[i].size() + var_negative_watched_clause_table[i].size()) > 0)
+            {
+                return i;
+            }
+        }
+    }
+    return UNDECIDED_VAR_NAME;
+}
+
+static inline uint32_t get_var_name_in_clause(uint32_t clause_idx,uint32_t var_idx)
 {
     return (uint32_t)abs(input_clause[clause_idx][var_idx]);
 }
@@ -314,6 +391,7 @@ static void back_tracking(void)
             if(last_var_1 == first_decision_var)
             {
                 end_solving = true;
+                return;
             }
 
             if(!record_decided_decision.empty())
@@ -353,7 +431,7 @@ static void back_tracking(void)
                 }
             }
         }
-    }else// UNIQUE_MODE but conflict
+    }else// UNIQUE_MODE or DECISION_MODE but conflict
     {
         while(!record_decided_decision.empty())
         {
@@ -387,17 +465,16 @@ static void back_tracking(void)
                 }
                 add_decision_queue(last_var_1,value,CONFLICT_MODE);
                 return;
-            }else if(mode == INITIAL_MODE)
-            {
-                return;
             }else if(mode == CONFLICT_MODE)
             {
                 back_tracking();
                 return;
-            }else
+            }else// Initial mode
             {
-                fprintf(stderr,"back tracking error\n");
-                exit(EXIT_FAILURE);
+                end_solving = true;
+                return;
+                //fprintf(stderr,"back tracking error\n");
+                //exit(EXIT_FAILURE);
             }
         }
     }
@@ -459,9 +536,12 @@ static void update_two_watching_literal(decision *p2decision)
             i--;//due to remove one clause,the idx need to remain same;
             loop_size = (uint32_t)need_new_decision_clause_list->size();//update loop size
 
+        }else if( is_unit_clause(current_clause))//case 3
+        {
+            //do nothing
+            continue;
         }else if(var_table[the_other_watched_var].value == VAL_UNASSIGNED)//case 2
         {
-            /*
             int value = VAL_UNASSIGNED;
             if(is_input_clause_var_postive(current_clause,the_other_watched_var))
             {
@@ -471,11 +551,10 @@ static void update_two_watching_literal(decision *p2decision)
                 value = VAL_0;
             }
             add_decision_queue(the_other_watched_var,value,UNIQUE_MODE);
-            */
-        }else if( is_unit_clause(current_clause))//case 3
-        {
-            //do nothing
-            continue;
+            if(CONFLICT_IN_ADD_DECISION)
+            {
+                return;
+            }
         }else//case 4(conflict)
         {
 

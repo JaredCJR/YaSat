@@ -15,17 +15,9 @@ using namespace std;
 #define UNIQUE_MODE                      0xF
 #define DECISION_MODE                   0xF0
 #define CONFLICT_MODE                  0xF00//meaning that this is second decision
-#define INITIAL_MODE                  0xF000//is the clause only has one var
+#define START_SYMBOL_MODE             0xF000//if there is clause only has one var
 
-#define AVAILABLE_VAR_SHIFT                0
-#define AVAILABLE_CLAUSE_SHIFT             8
-#define AVAILABLE_VAR_MASK              0xFF
-//#define AVAILABLE_CLAUSE_NEGATIVE_BIT    0x800000000
-#define AVAILABLE_CLAUSE_NEGATIVE_BIT    0xFF000000
-vector<uint32_t> unpicked_table;
 bool CONFLICT_IN_ADD_DECISION = false;
-
-#define FAILED_FIND_POSSIBLE_TARGET       -1
 
 #define UNDECIDED_VAR_NAME                -1
 
@@ -39,10 +31,19 @@ vector<decision*> record_decided_decision;
 #define MAGIC_DECISION 0x78123456
 uint32_t first_decision_var = MAGIC_DECISION;
 bool end_solving = false;
-
+uint32_t current_level;
+#define INITIAL_LEVEL  1 //only used in INITIAL_MODE(the clause only has one var)
+#define START_LEVEL    INITIAL_LEVEL //only used in init_solver()
+#define MAGIC_LEVEL   -87
+#define LEVEL_UNASSIGNED -4
+#define CLAUSE_UNASSIGNED -4
+#define NO_IMPLIED_CLAUSE -1// decison node
+bool NEW_UIP_resolve = true;
 
 static bool verify_result(void);
-static void back_tracking(void);
+static void back_tracking(int conflicting_clause);
+void build_var_table(void);
+void init_solver(void);
 
 static bool var_exist(int var)
 {
@@ -70,12 +71,10 @@ void build_var_table(void)
                 var_pos = (int)abs(input_clause[i][j]);
                 var_table[var_pos].var_name = var_pos;
                 var_table[var_pos].value = VAL_UNASSIGNED;
+                var_table[var_pos].decision_level = LEVEL_UNASSIGNED;
+                var_table[var_pos].decision_clause = CLAUSE_UNASSIGNED;
             }
         }
-    }
-    for(uint32_t i = start_var_table_idx;i < end_var_table_idx;i++)
-    {
-        unpicked_table.push_back(i);
     }
 }
 
@@ -91,39 +90,22 @@ static void init_two_watching_literal(uint32_t var_name,uint32_t src_idx,uint32_
     }
 }
 
-static inline void add_decision_queue(uint32_t var_name,int value,int mode)
+static inline void add_decision_queue(uint32_t var_name,int value,int mode,int decision_level,int decision_clause)
 {
+    decision *p2decision;
     CONFLICT_IN_ADD_DECISION = false;
     assert(value != VAL_UNASSIGNED);
-    for(uint32_t i = 0;i < decision_queue.size();i++)
-    {
-        if(decision_queue[i]->variable.var_name == var_name)
-        {
-            if(decision_queue[i]->variable.value != value)
-            {
-                for(uint32_t j = 0;j < decision_queue.size();j++)
-                {
-                    free(decision_queue[j]);
-                }
-                decision_queue.clear();
-                back_tracking();
-                CONFLICT_IN_ADD_DECISION = true;
-                return;
-            }else
-            {
-                return;
-            }
-        }
-    }
-    decision *p2decision = (decision*)malloc(sizeof(decision));
+    p2decision = (decision*)malloc(sizeof(decision));
     p2decision->variable.var_name = var_name;
     p2decision->variable.value = value;
+    p2decision->variable.decision_clause = decision_clause;
+    p2decision->variable.decision_level = decision_level;
     p2decision->mode = mode;
     switch(mode)
     {
         case UNIQUE_MODE:
         case DECISION_MODE:
-        case INITIAL_MODE:
+        case START_SYMBOL_MODE:
             decision_queue.push_back(p2decision);
             break;
         case CONFLICT_MODE:
@@ -144,29 +126,56 @@ static inline void pop_from_decision_queue(void)
     free(p2decision);
 }
 
-void init_solver(void)
+static inline void add_watching_literal_for_clause(uint32_t clause_idx)
 {
+    int value;
     uint32_t watched_var_1,watched_var_2;
-    for(uint32_t i = 0;i < input_clause.size();i++)
+    if(input_clause[clause_idx].size() > 1)
     {
-        if(input_clause[i].size() > 1)
+        /*TODO:random pick*/
+        watched_var_1 = (uint32_t)abs(input_clause[clause_idx][0]);
+        watched_var_2 = (uint32_t)abs(input_clause[clause_idx][1]);
+        init_two_watching_literal(watched_var_1,0,clause_idx);
+        init_two_watching_literal(watched_var_2,1,clause_idx);
+    }else
+    {
+        watched_var_1 = (uint32_t)abs(input_clause[clause_idx][0]);
+        if(input_clause[clause_idx][0] > 0)
         {
-            /*TODO:random pick*/
-            watched_var_1 = (uint32_t)abs(input_clause[i][0]);
-            watched_var_2 = (uint32_t)abs(input_clause[i][1]);
-            init_two_watching_literal(watched_var_1,0,i);
-            init_two_watching_literal(watched_var_2,1,i);
+            value = VAL_1;
         }else
         {
-            watched_var_1 = (uint32_t)abs(input_clause[i][0]);
-            if(input_clause[i][0] > 0)
-            {
-                add_decision_queue(watched_var_1,VAL_1,INITIAL_MODE);
-            }else
-            {
-                add_decision_queue(watched_var_1,VAL_0,INITIAL_MODE);
-            }
+            value = VAL_0;
         }
+        add_decision_queue(watched_var_1,value,START_SYMBOL_MODE,INITIAL_LEVEL,NO_IMPLIED_CLAUSE);
+        /*
+        var_table[watched_var_1].var_name = watched_var_1;
+        var_table[watched_var_1].value = value;
+        var_table[watched_var_1].decision_level = INITIAL_LEVEL;
+        var_table[watched_var_1].decision_clause = NO_IMPLIED_CLAUSE;
+
+        decision *p2decision = (decision*)malloc(sizeof(decision));
+        p2decision->variable.var_name = watched_var_1;
+        p2decision->variable.value = value;
+        p2decision->variable.decision_level = INITIAL_LEVEL;
+        p2decision->variable.decision_clause = NO_IMPLIED_CLAUSE;
+        p2decision->mode = START_SYMBOL_MODE;
+        record_decided_decision.insert(record_decided_decision.begin(),p2decision);
+        */
+    }
+}
+
+void init_solver(void)
+{
+    current_level = START_LEVEL;
+    for(uint32_t j = 0;j < decision_queue.size();j++)
+    {
+        free(decision_queue[j]);
+    }
+    decision_queue.clear();
+    for(uint32_t i = 0;i < input_clause.size();i++)
+    {
+        add_watching_literal_for_clause(i);
     }
 }
 
@@ -209,7 +218,8 @@ static bool make_decision(void)
     {
         value = VAL_0;
     }
-    add_decision_queue((uint32_t)var,value,DECISION_MODE);
+    current_level++;
+    add_decision_queue((uint32_t)var,value,DECISION_MODE,current_level,NO_IMPLIED_CLAUSE);
     return true;
 }
 
@@ -338,121 +348,346 @@ static inline bool is_input_clause_var_postive(uint32_t clause_idx,uint32_t var_
     }
 }
 
-static void back_tracking(void)
+static inline bool is_at_least_two_var_assigned(uint32_t target_clause,int target_level)
 {
-    uint32_t last_var_1,last_var_2;
-    uint32_t mode;
-    int value = VAL_UNASSIGNED;
-    decision *p2decision;
-    //remove previous decision in this action
-    decision_queue.clear();
-
-    if(record_decided_decision.back()->mode == CONFLICT_MODE)
+    uint32_t count = 0;
+    for(uint32_t i = 0;i < input_clause[target_clause].size();i++)
     {
-        while(!record_decided_decision.empty())
+        if( var_table[abs(input_clause[target_clause][i])].decision_level == target_level )
         {
-            //pop last two var(same) in record,and assign it to be unassigned
-            p2decision = record_decided_decision.back();
-            last_var_1 = p2decision->variable.var_name;
-            record_decided_decision.pop_back();
-            free(p2decision);
-
-            p2decision = record_decided_decision.back();
-            last_var_2 = p2decision->variable.var_name;
-            record_decided_decision.pop_back();
-            free(p2decision);
-
-            assert(last_var_1 == last_var_2);
-            var_table[last_var_1].value = VAL_UNASSIGNED;
-            if(last_var_1 == first_decision_var)
-            {
-                end_solving = true;
-                return;
-            }
-
-            if(!record_decided_decision.empty())
-            {
-                //get var until it is not UNIQUE_MODE
-                p2decision = record_decided_decision.back();
-                mode = p2decision->mode;
-                while(mode == UNIQUE_MODE)
-                {
-                    var_table[p2decision->variable.var_name].value = VAL_UNASSIGNED;
-                    record_decided_decision.pop_back();
-                    free(p2decision);
-                    if(!record_decided_decision.empty())
-                    {  
-                        p2decision = record_decided_decision.back();
-                        mode = p2decision->mode;
-                    }
-                }
-                //check this var is second assignment or not
-                if(mode == CONFLICT_MODE)
-                {
-                    continue;
-                }else// DECISION_MODE,make its second assignment
-                {
-                    last_var_1 = p2decision->variable.var_name;
-                    value = var_table[last_var_1].value;
-                    assert(value != VAL_UNASSIGNED);
-                    if(value == VAL_0)
-                    {
-                        value = VAL_1;
-                    }else
-                    {
-                        value = VAL_0;
-                    }
-                    add_decision_queue(last_var_1,value,CONFLICT_MODE);
-                    return;
-                }
-            }
+            count++;
         }
-    }else// UNIQUE_MODE or DECISION_MODE but conflict
+    }
+    if(count >= 2)
     {
-        while(!record_decided_decision.empty())
+        return true;
+    }
+    return false;
+}
+
+static inline int find_lastest_assigned_var(int target_clause)
+{
+    for(uint32_t i = (record_decided_decision.size()-1);i >= 0;i--)
+    {
+        for(uint32_t j = 0;j < input_clause[target_clause].size();j++)
         {
-            //get var until it is not UNIQUE_MODE
-            p2decision = record_decided_decision.back();
-            mode = p2decision->mode;
-            while(mode == UNIQUE_MODE)
+            if(record_decided_decision[i]->variable.var_name == (uint32_t)abs(input_clause[target_clause][j]) )
             {
-                var_table[p2decision->variable.var_name].value = VAL_UNASSIGNED;
-                record_decided_decision.pop_back();
-                free(p2decision);
-                if(!record_decided_decision.empty())
-                {  
-                    p2decision = record_decided_decision.back();
-                    mode = p2decision->mode;
-                }else
-                {
-                }
-            }
-            if(mode == DECISION_MODE)
-            {
-                last_var_1 = p2decision->variable.var_name;
-                value = var_table[last_var_1].value;
-                assert(value != VAL_UNASSIGNED);
-                if(value == VAL_0)
-                {
-                    value = VAL_1;
-                }else
-                {
-                    value = VAL_0;
-                }
-                add_decision_queue(last_var_1,value,CONFLICT_MODE);
-                return;
-            }else if(mode == CONFLICT_MODE)
-            {
-                back_tracking();
-                return;
-            }else// Initial mode
-            {
-                end_solving = true;
-                return;
+                return record_decided_decision[i]->variable.var_name;
             }
         }
     }
-    
+    return UNDECIDED_VAR_NAME;
+}
+
+static inline uint32_t antecedent(uint32_t var_name)
+{
+    int clause = var_table[var_name].decision_clause;
+    assert(clause != NO_IMPLIED_CLAUSE);
+    return clause;
+}
+
+
+static inline uint32_t resolve(uint32_t clause_1,uint32_t clause_2,int var_name)
+{   
+    vector<int> new_clause;
+    new_clause.clear();
+    bool same_var;
+    for(uint32_t i = 0;i < input_clause[clause_1].size();i++)
+    {   
+        if(abs(input_clause[clause_1][i]) != var_name)
+        {   
+            new_clause.push_back(input_clause[clause_1][i]);
+        }
+    }
+    for(uint32_t i = 0;i < input_clause[clause_2].size();i++)
+    {   
+        same_var = false;
+        if(abs(input_clause[clause_2][i]) != var_name)
+        {
+            for(uint32_t j = 0;j < new_clause.size();j++)
+            {
+                if(new_clause[j] == input_clause[clause_2][i])
+                {
+                    same_var = true;
+                }
+            }
+            if(!same_var)
+            {
+                new_clause.push_back(input_clause[clause_2][i]);
+            }
+        }                                    
+    }
+    if(!NEW_UIP_resolve)
+    {
+        input_clause.back().clear();
+        input_clause.pop_back();
+    }
+    NEW_UIP_resolve = false;
+    assert(!new_clause.empty());
+    input_clause.push_back(new_clause);
+    return (input_clause.size()-1);
+}
+
+//return the decision level that should back track to.
+static uint32_t FirstUIP(uint32_t clause_idx,uint32_t level)
+{
+    int var_p;
+    uint32_t result_clause = clause_idx;
+    NEW_UIP_resolve = true;
+    while(is_at_least_two_var_assigned(result_clause,level))
+    {
+        var_p = find_lastest_assigned_var(result_clause);
+        assert(var_p != UNDECIDED_VAR_NAME);
+        result_clause = resolve(result_clause,antecedent(var_p),var_p);
+    }
+    return result_clause;
+}
+
+static inline void undo_var(uint32_t var_name)
+{
+    var_table[var_name].value = VAL_UNASSIGNED;
+    var_table[var_name].decision_clause = CLAUSE_UNASSIGNED;
+    var_table[var_name].decision_level = LEVEL_UNASSIGNED;
+}
+
+static inline void back_tracking_CONFLICT(void)
+{
+    int value;
+    decision *p2decision = record_decided_decision.back();
+                /*undo the conflict var*/
+                undo_var(p2decision->variable.var_name);
+                free(p2decision);
+                record_decided_decision.pop_back();
+                p2decision = record_decided_decision.back();
+                free(p2decision);
+                record_decided_decision.pop_back();
+                while(!record_decided_decision.empty())
+                {
+                    p2decision = record_decided_decision.back();
+                    if(p2decision->mode == CONFLICT_MODE)
+                    {
+                        /*undo the conflict var*/
+                        undo_var(p2decision->variable.var_name);
+                        free(p2decision);
+                        record_decided_decision.pop_back();
+                        p2decision = record_decided_decision.back();
+                        free(p2decision);
+                        record_decided_decision.pop_back();
+                    }else if(p2decision->mode == UNIQUE_MODE)
+                    {
+                        undo_var(p2decision->variable.var_name);
+                        free(p2decision);
+                        record_decided_decision.pop_back();
+                    }else if(p2decision->mode == DECISION_MODE)
+                    {
+                        if(p2decision->variable.value == VAL_1)
+                        {
+                            value = VAL_0;
+                        }else
+                        {
+                            value = VAL_1;
+                        }
+                        add_decision_queue(record_decided_decision.back()->variable.var_name,value,CONFLICT_MODE,record_decided_decision.back()->variable.decision_level,record_decided_decision.back()->variable.decision_clause);
+                        return;
+                    }else
+                    {
+                        end_solving = true;
+                        return;
+                    }
+                }
+}
+
+static void back_tracking(int conflicting_clause)
+{
+    int level = current_level;
+    int max_level = MAGIC_LEVEL;
+    int temp_level = MAGIC_LEVEL;
+    decision *p2decision;
+    decision *p2decision_past;
+    bool loop_continue = false;
+    int value;
+    uint32_t var_name;
+    int learned_clause = FirstUIP(conflicting_clause,level);
+    bool NO_learned_clause = false;
+    if(conflicting_clause == learned_clause)
+    {
+        NO_learned_clause = true;
+    }
+    for(uint32_t i = 0;i < input_clause[learned_clause].size();i++)
+    {
+       temp_level = var_table[abs(input_clause[learned_clause][i])].decision_level;
+       if((temp_level != level) && (temp_level != INITIAL_LEVEL) )
+       {
+           if(temp_level > max_level)
+           {
+               max_level = temp_level;
+           }
+       }
+    }
+    for(uint32_t j = 0;j < decision_queue.size();j++)
+    {
+        free(decision_queue[j]);
+    }
+    decision_queue.clear();
+    if(max_level == MAGIC_LEVEL)/*back track to level 0(no assignment)*/
+    {
+        while(!record_decided_decision.empty() )
+        {
+            if(record_decided_decision.back()->variable.decision_level != INITIAL_LEVEL)
+            {
+                p2decision = record_decided_decision.back();
+                var_name = p2decision->variable.var_name;
+                undo_var(var_name);
+                free(p2decision);
+                record_decided_decision.pop_back();
+            }else
+            {
+                break;
+            }
+        }
+        current_level = START_LEVEL;
+        add_watching_literal_for_clause(input_clause.size()-1);
+        first_decision_var = MAGIC_DECISION;
+   }else/*back track to max_level */
+   {
+        /*remove the learned_clause*/
+       if(NO_learned_clause)
+       {
+            input_clause.back().clear();
+            input_clause.pop_back();
+       }
+
+        p2decision = record_decided_decision.back();
+        if(max_level != p2decision->variable.decision_level)
+        {
+           loop_continue = true;
+        }
+        while(loop_continue)
+        {
+           /*loop until the first max_level var*/
+           loop_continue = false;
+           var_table[p2decision->variable.var_name].value = VAL_UNASSIGNED;
+           var_table[p2decision->variable.var_name].decision_level = LEVEL_UNASSIGNED;
+           var_table[p2decision->variable.var_name].decision_clause = CLAUSE_UNASSIGNED;
+           free(p2decision);
+           record_decided_decision.pop_back();
+           //next iteration?
+           if(!record_decided_decision.empty())
+           {
+               p2decision = record_decided_decision.back();
+               if(max_level != p2decision->variable.decision_level)
+                {
+                    loop_continue = true;
+                }
+           }else
+           {
+               printf("ERROR in back_tracking to target level\n");
+               exit(EXIT_FAILURE);
+           }
+        }
+        //back track to the head of this level decision
+        while(1)
+        {
+            if(record_decided_decision.size() >= 2)
+            {
+                p2decision_past = record_decided_decision.back();
+                p2decision = record_decided_decision[record_decided_decision.size()-2];
+                if(p2decision->variable.decision_level == max_level)
+                {
+                    if(p2decision->variable.var_name == p2decision_past->variable.var_name)
+                    {
+                        if(p2decision_past->mode == CONFLICT_MODE)
+                        {
+                            var_table[p2decision_past->variable.var_name].value = VAL_UNASSIGNED;
+                            var_table[p2decision_past->variable.var_name].decision_clause = CLAUSE_UNASSIGNED;
+                            var_table[p2decision_past->variable.var_name].decision_level = LEVEL_UNASSIGNED;
+                            free(p2decision);
+                            free(p2decision_past);
+                            record_decided_decision.pop_back();
+                            record_decided_decision.pop_back();
+                            if(record_decided_decision.empty())
+                            {
+                                end_solving = true;
+                                return;
+                            }
+                            break;
+                        }
+                    }
+                    undo_var(p2decision_past->variable.var_name);
+                    free(p2decision_past);
+                    record_decided_decision.pop_back();
+                }else
+                {
+                    break;
+                }
+            }else
+            {
+                break;
+            }
+        }
+        p2decision = record_decided_decision.back();
+        //assign inverse value to target var
+        if(p2decision->mode == DECISION_MODE)//first conflict
+        {
+            if(p2decision->variable.value == VAL_1)
+            {
+                value = VAL_0;
+            }else
+            {
+                value = VAL_1;
+            }
+            current_level = p2decision->variable.decision_level;
+            add_decision_queue(p2decision->variable.var_name,value,CONFLICT_MODE,p2decision->variable.decision_level,p2decision->variable.decision_clause);
+        }else if(p2decision->mode == CONFLICT_MODE)//second conflict
+        {
+            if(p2decision->variable.var_name == first_decision_var)
+            {
+                end_solving = true;
+                return;
+            }else
+            {
+                back_tracking_CONFLICT();
+            }
+        }else if(p2decision->mode == UNIQUE_MODE)//unique conflict
+        {
+            /*TODO*/
+            //undo until other mode
+            undo_var(p2decision->variable.var_name);
+            free(p2decision);
+            record_decided_decision.pop_back();
+            p2decision = record_decided_decision.back();
+            while(p2decision->mode == UNIQUE_MODE)
+            {
+                undo_var(p2decision->variable.var_name);
+                free(p2decision);
+                record_decided_decision.pop_back();
+                p2decision = record_decided_decision.back();
+            }
+            if(p2decision->mode == CONFLICT_MODE)
+            {
+                back_tracking_CONFLICT();
+            }else if(p2decision->mode == DECISION_MODE)
+            {
+                if(p2decision->variable.value == VAL_1)
+                {
+                    value = VAL_0;
+                }else
+                {
+                    value = VAL_1;
+                }
+                add_decision_queue(record_decided_decision.back()->variable.var_name,value,CONFLICT_MODE,record_decided_decision.back()->variable.decision_level,record_decided_decision.back()->variable.decision_clause);
+            }else
+            {
+                printf("ERROR in back_tracking to wrong mode\n");
+                exit(EXIT_FAILURE);
+            }
+        }else//FirstUIP this will never get into this situation
+        {
+            printf("ERROR in back_tracking to no corresponding MODE\n");
+            exit(EXIT_FAILURE);
+        }
+   }
 }
 
 //main algorithm for two-literal watching
@@ -524,17 +759,16 @@ static void update_two_watching_literal(decision *p2decision)
             {
                 value = VAL_0;
             }
-            add_decision_queue(the_other_watched_var,value,UNIQUE_MODE);
+            add_decision_queue(the_other_watched_var,value,UNIQUE_MODE,current_level,current_clause);
             if(CONFLICT_IN_ADD_DECISION)
             {
                 return;
             }
         }else//case 4(conflict)
         {
-
             if(record_decided_decision.back()->mode == CONFLICT_MODE)//second conflict
             {
-                back_tracking();
+                back_tracking(current_clause);
                 return;
             }else//first conflict
             {
@@ -542,7 +776,7 @@ static void update_two_watching_literal(decision *p2decision)
                 int reverse_value;
                 if(record_decided_decision.back()->mode == UNIQUE_MODE)
                 {
-                    back_tracking();
+                    back_tracking(current_clause);
                     return;
                 }
                 if(current_value == VAL_0)
@@ -552,13 +786,14 @@ static void update_two_watching_literal(decision *p2decision)
                 {
                     reverse_value = VAL_0;
                 }
-                add_decision_queue(record_decided_decision.back()->variable.var_name,reverse_value,CONFLICT_MODE);
+                add_decision_queue(record_decided_decision.back()->variable.var_name,reverse_value,CONFLICT_MODE,record_decided_decision.back()->variable.decision_level,record_decided_decision.back()->variable.decision_clause);
             }
             return;
         }
     }
-
 }
+
+
 
 static inline void print_result(void)
 {
@@ -657,10 +892,11 @@ void solver(void)
             {
                 p2decision = decision_queue.front();
                 assert(p2decision->variable.value != VAL_UNASSIGNED);
-                record_decided_decision.push_back(p2decision);
                 decision_queue.erase(decision_queue.begin());//not actually destroy the first element,only the reference
-            
+                record_decided_decision.push_back(p2decision);
                 var_table[p2decision->variable.var_name].value = p2decision->variable.value;
+                var_table[p2decision->variable.var_name].decision_level = p2decision->variable.decision_level;
+                var_table[p2decision->variable.var_name].decision_clause = p2decision->variable.decision_clause;
                 update_two_watching_literal(p2decision);
             }
         }

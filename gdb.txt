@@ -1,12 +1,20 @@
 b solver
 b back_tracking
 b update_two_watching_literal
+b add_decision_queue
+b FirstUIP
+
 
 define pDecision
     p "p2decision->variable.var_name"
     p p2decision->variable.var_name
     p "p2decision->variable.value"
     p p2decision->variable.value
+    p "p2decision->variable.decision_level"
+    p p2decision->variable.decision_level
+    p "p2decision->variable.decision_clause"
+    p p2decision->variable.decision_clause
+    p "MODE"
     p/x p2decision->mode
 end
 

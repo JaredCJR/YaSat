@@ -11,6 +11,8 @@
 typedef struct var{
     uint32_t var_name;
     int value;
+    int decision_level;
+    int decision_clause;
 }var; 
 
 typedef struct decision{

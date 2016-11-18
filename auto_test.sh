@@ -18,6 +18,14 @@ echo "UNSAT"
 ./yasat benchmarks/UNSAT/tiny/rand10_50.cnf
 echo ================================================================
 echo ================================================================
+echo "uf* test"
+./yasat benchmarks/uf_SAT/uf20-04.cnf
+./yasat benchmarks/uf_SAT/uf50-0795.cnf
+./yasat benchmarks/uf_SAT/uf100-0542.cnf
+./yasat benchmarks/uf_SAT/uf150-085.cnf
+./yasat benchmarks/uf_SAT/uf225-060.cnf
+echo ================================================================
+echo ================================================================
 echo "large test"
 time ./yasat benchmarks/large/sat100.cnf
 time ./yasat benchmarks/large/sat250.cnf

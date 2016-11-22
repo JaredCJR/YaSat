@@ -4,7 +4,7 @@
 #FLAGS=-Wall -O0 -g3 -std=c++14
 
 # Optimizing flags
-FLAGS=-Wall -O3 -std=c++14
+FLAGS=-Wall -Ofast -std=c++14
 
 # List all the .o files you need to build here
 OBJS=parser.o sat.o

@@ -136,20 +136,6 @@ static inline void add_watching_literal_for_clause(uint32_t clause_idx)
 			value = VAL_0;
 		}
 		add_decision_queue(watched_var_1, value, START_SYMBOL_MODE, INITIAL_LEVEL, NO_IMPLIED_CLAUSE);
-		/*
-		var_table[watched_var_1].var_name = watched_var_1;
-		var_table[watched_var_1].value = value;
-		var_table[watched_var_1].decision_level = INITIAL_LEVEL;
-		var_table[watched_var_1].decision_clause = NO_IMPLIED_CLAUSE;
-
-		decision *p2decision = (decision*)malloc(sizeof(decision));
-		p2decision->variable.var_name = watched_var_1;
-		p2decision->variable.value = value;
-		p2decision->variable.decision_level = INITIAL_LEVEL;
-		p2decision->variable.decision_clause = NO_IMPLIED_CLAUSE;
-		p2decision->mode = START_SYMBOL_MODE;
-		record_decided_decision.insert(record_decided_decision.begin(),p2decision);
-		*/
 	}
 }
 
@@ -553,7 +539,6 @@ static void back_tracking(int conflicting_clause)
 				back_tracking_CONFLICT();
 			}
 		} else if (p2decision->mode == UNIQUE_MODE) { //unique conflict
-			/*TODO*/
 			//undo until other mode
 			undo_var(p2decision->variable.var_name);
 			free(p2decision);
@@ -770,6 +755,10 @@ int main(int argc, char *argv[])
 	solver();
 
 	/*clean up*/
+	while (!decision_queue.empty()) {
+		free(decision_queue.back());
+		decision_queue.pop_back();
+	}
 	while (!record_decided_decision.empty()) {
 		free(record_decided_decision.back());
 		record_decided_decision.pop_back();

@@ -42,6 +42,7 @@ bool NEW_UIP_resolve = true;
 #define VSIDS_INIT           0
 #define VSIDS_UPDATE_ADD     1
 #define VSIDS_UPDATE_DELETE  2
+vector<uint32_t> available_vars;
 
 static bool verify_result(void);
 static void back_tracking(int conflicting_clause);
@@ -189,20 +190,31 @@ static bool make_decision(void)
 	if (end_solving) {
 		return false;
 	}
-    /*TODO:VSIDS needto be utilized*/
+    available_vars.clear();
 	for (int i = (int)start_var_table_idx; i < (int)end_var_table_idx; i++) {
 		//unassigned
 		if (var_table[i].value == VAL_UNASSIGNED) {
 			//unassigned + watched
 			if ((var_postive_watched_clause_table[i].size() + var_negative_watched_clause_table[i].size()) > 0) {
-				var = var_table[i].var_name;
-				if (first_decision_var == MAGIC_DECISION) {
-					first_decision_var = i;//if back track to this var,UNSAT
-				}
-				break;
+                available_vars.push_back(var_table[i].var_name);
 			}
 		}
 	}
+    uint32_t max_VSIDS = 0;
+    int max_VSIDS_idx = 0;
+    if(!available_vars.empty()) {
+        for(uint32_t i = 0;i < available_vars.size();i++) {
+            if(var_table[available_vars[i]].VSIDS_count >= max_VSIDS) {
+                max_VSIDS = var_table[available_vars[i]].VSIDS_count;
+                max_VSIDS_idx = i;
+            }
+        }
+        //var = rand() % available_vars.size();
+        var = available_vars[max_VSIDS_idx];
+	    if (first_decision_var == MAGIC_DECISION) {
+		    first_decision_var = var;//if back track to this var,UNSAT
+	    }
+    }
 	if (var == UNDECIDED_VAR_NAME) {
 		return false;
 	}
@@ -784,16 +796,6 @@ int main(int argc, char *argv[])
 	init_solver();
 	/*main algorithm*/
 	solver();
-
-    /*
-    //test VSIDS only
-    printf("\nVSIDS start\n");
-    for(uint32_t i = start_var_table_idx;i< end_var_table_idx;i++)
-    {
-        printf("%d ",var_table[i].VSIDS_count);
-    }
-    printf("\nVSIDS end\n");
-    */
 
 	/*clean up*/
 	while (!decision_queue.empty()) {

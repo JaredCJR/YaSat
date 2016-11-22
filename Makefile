@@ -25,10 +25,10 @@ test: $(EXENAME)
 	./yasat benchmarks/UNSAT/tiny/rand5_30.cnf
 
 gdb: $(EXENAME)
-	gdbtui -x gdb.txt --args  ./yasat benchmarks/UNSAT/tiny/rand10_50.cnf
+	gdbtui -x gdb.txt --args  ./yasat benchmarks/SAT/sanity/sanity2.cnf
 
 gdb_2: $(EXENAME)
-	gdbtui -x gdb_2.txt --args  ./yasat benchmarks/uf_SAT/uf150-085.cnf
+	gdbtui -x gdb_2.txt --args  ./yasat benchmarks/uf_SAT/uf20-04.cnf
 
 
 # The "phony" `clean' compilation target.  Type `make clean' to remove

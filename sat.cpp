@@ -39,6 +39,9 @@ uint32_t current_level;
 #define CLAUSE_UNASSIGNED -4
 #define NO_IMPLIED_CLAUSE -1// decison node
 bool NEW_UIP_resolve = true;
+#define VSIDS_INIT           0
+#define VSIDS_UPDATE_ADD     1
+#define VSIDS_UPDATE_DELETE  2
 
 static bool verify_result(void);
 static void back_tracking(int conflicting_clause);
@@ -68,9 +71,33 @@ void build_var_table(void)
 				var_table[var_pos].value = VAL_UNASSIGNED;
 				var_table[var_pos].decision_level = LEVEL_UNASSIGNED;
 				var_table[var_pos].decision_clause = CLAUSE_UNASSIGNED;
+                var_table[var_pos].VSIDS_count = VSIDS_INIT;
 			}
 		}
 	}
+}
+
+static inline void update_VSIDS_counter(int var_name,int mode)
+{
+    assert(var_name != UNDECIDED_VAR_NAME);
+    assert(var_name >= 0);
+    if(mode == VSIDS_UPDATE_ADD)
+    {
+        var_table[var_name].VSIDS_count++;
+    }else if(mode == VSIDS_UPDATE_DELETE)
+    {
+        if(var_table[var_name].VSIDS_count >= 1)
+        {
+            var_table[var_name].VSIDS_count--;
+        }else
+        {
+            var_table[var_name].VSIDS_count = VSIDS_INIT;
+        }
+    }else
+    {
+        printf("error in update VSIDS\n");
+        exit(EXIT_FAILURE);
+    }
 }
 
 static void init_two_watching_literal(uint32_t var_name, uint32_t src_idx, uint32_t clause_idx)
@@ -81,6 +108,7 @@ static void init_two_watching_literal(uint32_t var_name, uint32_t src_idx, uint3
 	if (input_clause[clause_idx][src_idx] < 0) {
 		var_negative_watched_clause_table[var_name].push_back(clause_idx);
 	}
+    update_VSIDS_counter(var_name,VSIDS_UPDATE_ADD);
 }
 
 static inline void add_decision_queue(uint32_t var_name, int value, int mode, int decision_level, int decision_clause)
@@ -161,6 +189,7 @@ static bool make_decision(void)
 	if (end_solving) {
 		return false;
 	}
+    /*TODO:VSIDS needto be utilized*/
 	for (int i = (int)start_var_table_idx; i < (int)end_var_table_idx; i++) {
 		//unassigned
 		if (var_table[i].value == VAL_UNASSIGNED) {
@@ -611,8 +640,10 @@ static void update_two_watching_literal(decision *p2decision)
 			} else {
 				var_negative_watched_clause_table[new_watched_var].push_back(current_clause);
 			}
+            update_VSIDS_counter(new_watched_var,VSIDS_UPDATE_ADD);
 			//remove the old watched var from the clause
 			need_new_decision_clause_list->erase(need_new_decision_clause_list->begin() + i);
+            update_VSIDS_counter(p2decision->variable.var_name,VSIDS_UPDATE_DELETE);
 			i--;//due to remove one clause,the idx need to remain same;
 			loop_size = (uint32_t)need_new_decision_clause_list->size();//update loop size
 
@@ -753,6 +784,16 @@ int main(int argc, char *argv[])
 	init_solver();
 	/*main algorithm*/
 	solver();
+
+    /*
+    //test VSIDS only
+    printf("\nVSIDS start\n");
+    for(uint32_t i = start_var_table_idx;i< end_var_table_idx;i++)
+    {
+        printf("%d ",var_table[i].VSIDS_count);
+    }
+    printf("\nVSIDS end\n");
+    */
 
 	/*clean up*/
 	while (!decision_queue.empty()) {

@@ -13,6 +13,7 @@ typedef struct var{
     int value;
     int decision_level;
     int decision_clause;
+    uint32_t VSIDS_count;
 }var; 
 
 typedef struct decision{

@@ -152,7 +152,6 @@ static inline void add_watching_literal_for_clause(uint32_t clause_idx)
 	int value;
 	uint32_t watched_var_1, watched_var_2;
 	if (input_clause[clause_idx].size() > 1) {
-		/*TODO:random pick*/
 		watched_var_1 = (uint32_t)abs(input_clause[clause_idx][0]);
 		watched_var_2 = (uint32_t)abs(input_clause[clause_idx][1]);
 		init_two_watching_literal(watched_var_1, 0, clause_idx);
@@ -209,7 +208,6 @@ static bool make_decision(void)
                 max_VSIDS_idx = i;
             }
         }
-        //var = rand() % available_vars.size();
         var = available_vars[max_VSIDS_idx];
 	    if (first_decision_var == MAGIC_DECISION) {
 		    first_decision_var = var;//if back track to this var,UNSAT

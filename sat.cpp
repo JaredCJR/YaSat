@@ -447,6 +447,7 @@ static inline void back_tracking_CONFLICT(void)
 			} else {
 				value = VAL_1;
 			}
+            current_level = record_decided_decision.back()->variable.decision_level;
 			add_decision_queue(record_decided_decision.back()->variable.var_name, value, CONFLICT_MODE, record_decided_decision.back()->variable.decision_level, record_decided_decision.back()->variable.decision_clause);
 			return;
 		} else {
@@ -482,6 +483,10 @@ static void back_tracking(int conflicting_clause)
 			}
 		}
 	}
+#ifdef debug
+    printf("backtracking to LEVEL = %d\n",max_level);
+    int debug_level = max_level;
+#endif
 	for (uint32_t j = 0; j < decision_queue.size(); j++) {
 		free(decision_queue[j]);
 	}
@@ -532,6 +537,7 @@ static void back_tracking(int conflicting_clause)
 			}
 		}
 		//back track to the head of this level decision
+        //FIXME:stack is damaged,previous remove too many recorded decision,back track to error decision
 		while (1) {
 			if (record_decided_decision.size() >= 2) {
 				p2decision_past = record_decided_decision.back();

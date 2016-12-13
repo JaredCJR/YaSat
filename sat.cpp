@@ -458,7 +458,7 @@ static inline void back_tracking_CONFLICT(void)
 
 static void back_tracking(int conflicting_clause)
 {
-#ifdef pDEBUGGING
+#ifdef debug
 	printf("conflict var:%d , value:%d \n",record_decided_decision.back()->variable.var_name,record_decided_decision.back()->variable.value);
 #endif
 	int level = current_level;
@@ -778,10 +778,57 @@ void solver(void)
 				var_table[p2decision->variable.var_name].value = p2decision->variable.value;
 				var_table[p2decision->variable.var_name].decision_level = p2decision->variable.decision_level;
 				var_table[p2decision->variable.var_name].decision_clause = p2decision->variable.decision_clause;
+#ifdef debug
+                if(p2decision->variable.value == VAL_0){
+                    printf("VAR: -%d ",p2decision->variable.var_name);
+                }else {
+                    printf("VAR: %d ",p2decision->variable.var_name);
+                }
+                int mode = p2decision->mode;
+                switch(mode){
+                    case UNIQUE_MODE:
+                        printf(" UNIQUE_MODE");
+                        break;
+                    case DECISION_MODE:
+                        printf(" DECISION_MODE");
+                        break;
+                    case CONFLICT_MODE:
+                        printf(" CONFLICT_MODE");
+                        break;
+                    case START_SYMBOL_MODE:
+                        printf(" START_SYMBOL_MODE");
+                        break;
+                    default:
+                        printf("MODE ERROR");
+                        exit(EXIT_FAILURE);
+                }
+                printf(" LEVEL: %d ",p2decision->variable.decision_level);
+                printf(" CLAUSE: %d \n", p2decision->variable.decision_clause);
+#endif
 				update_two_watching_literal(p2decision);
 			}
 		}
 	}
+}
+
+void preprocess_input(void)
+{
+    vector<int>::iterator p2var;
+    vector<int> removed_list;
+    for(uint32_t i = 0;i < input_clause.size();i++) {
+        removed_list.clear();
+        for(uint32_t j = 1;j < input_clause[i].size();j++) {
+            //first var never duplicate,start from second
+            p2var = find(input_clause[i].begin(),input_clause[i].begin()+j,input_clause[i][j]);
+            if(p2var != input_clause[i].begin()+j) {//find duplicate var
+                removed_list.push_back(*p2var);
+                input_clause[i].erase(p2var);
+                j--;
+            }
+        }
+        //if there is same var but different value in one clause:UNSAT
+        //not dealed yet
+    }
 }
 
 int main(int argc, char *argv[])
@@ -790,6 +837,8 @@ int main(int argc, char *argv[])
 	int max_name;
 	parse_DIMACS_CNF(input_clause, max_name, argv[1]);
 	max_var_name = (uint32_t)max_name;
+    /*remove duplicated same var more than one in same clause*/
+    preprocess_input();
 	/*build var_table for management*/
 	build_var_table();
 	/*traverse all clause to initialize the initial two watched var for each and unique decision*/

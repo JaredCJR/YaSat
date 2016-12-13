@@ -9,7 +9,7 @@
 #include "sat.h"
 using namespace std;
 
-#define MAX_VAR_COUNT                 1000//max:1000
+#define MAX_VAR_COUNT                 2000//max:2000
 #define start_var_table_idx                1
 #define end_var_table_idx    (max_var_name+1)
 #define UNIQUE_MODE                      0xF
@@ -458,6 +458,9 @@ static inline void back_tracking_CONFLICT(void)
 
 static void back_tracking(int conflicting_clause)
 {
+#ifdef pDEBUGGING
+	printf("conflict var:%d , value:%d \n",record_decided_decision.back()->variable.var_name,record_decided_decision.back()->variable.value);
+#endif
 	int level = current_level;
 	int max_level = MAGIC_LEVEL;
 	int temp_level = MAGIC_LEVEL;
@@ -703,9 +706,8 @@ static inline void print_result(void)
 			printf("%d ", i);
 		} else if (var_table[i].value == VAL_0) {
 			printf("-%d ", i);
-		} else {
-			fprintf(stderr, "OUTPUT result error!\n");
-			exit(EXIT_FAILURE);
+		} else {// default value for those don't care var
+            printf("%d ",i);
 		}
 	}
 }
@@ -728,7 +730,7 @@ static bool verify_result(void)
 					clause_result = true;
 				}
 			} else { //unassigned
-				result = false;
+                //do nothing
 			}
 		}
 		if (!clause_result) {

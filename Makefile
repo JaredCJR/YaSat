@@ -1,10 +1,10 @@
 # A template C++ Makefile for your SAT solver.
 
 # Debugging flags
-#FLAGS=-Wall -O0 -g3 -std=c++14 -Ddebug
+FLAGS=-Wall -O0 -g3 -std=c++14 -Ddebug
 
 # Optimizing flags
-FLAGS=-Wall -Ofast -std=c++14
+#FLAGS=-Wall -Ofast -std=c++14
 
 # List all the .o files you need to build here
 OBJS=parser.o sat.o

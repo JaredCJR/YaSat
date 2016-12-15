@@ -32,6 +32,8 @@ vector<decision*> record_decided_decision;
 uint32_t first_decision_var = MAGIC_DECISION;
 bool end_solving = false;
 uint32_t current_level;
+bool IS_FirstUIP_RETRY = true;
+vector<uint32_t> recorded_backtracking_level;
 #define INITIAL_LEVEL  1 //only used in INITIAL_MODE(the clause only has one var)
 #define START_LEVEL    INITIAL_LEVEL //only used in init_solver()
 #define MAGIC_LEVEL   -87
@@ -447,6 +449,7 @@ static inline void back_tracking_CONFLICT(void)
 			} else {
 				value = VAL_1;
 			}
+            //TODO: use IS_FirstUIP_RETRY
             current_level = record_decided_decision.back()->variable.decision_level;
 			add_decision_queue(record_decided_decision.back()->variable.var_name, value, CONFLICT_MODE, record_decided_decision.back()->variable.decision_level, record_decided_decision.back()->variable.decision_clause);
 			return;
@@ -506,12 +509,21 @@ static void back_tracking(int conflicting_clause)
 		current_level = START_LEVEL;
 		add_watching_literal_for_clause(input_clause.size() - 1);
 		first_decision_var = MAGIC_DECISION;
+        recorded_backtracking_level.clear();
 	} else { /*back track to max_level */
 		/*remove the learned_clause*/
 		if (NO_learned_clause) {
 			input_clause.back().clear();
 			input_clause.pop_back();
-		}
+		}else{
+#ifdef debug
+            printf("Learned clause: ");
+            for(uint32_t i = 0;i < input_clause.back().size();i++){
+                printf("%d ",input_clause[input_clause.size()-1][i]);
+            }
+            printf("\n");
+#endif
+        }
 
 		p2decision = record_decided_decision.back();
 		if (max_level != p2decision->variable.decision_level) {
@@ -537,7 +549,6 @@ static void back_tracking(int conflicting_clause)
 			}
 		}
 		//back track to the head of this level decision
-        //FIXME:stack is damaged,previous remove too many recorded decision,back track to error decision
 		while (1) {
 			if (record_decided_decision.size() >= 2) {
 				p2decision_past = record_decided_decision.back();
@@ -570,6 +581,51 @@ static void back_tracking(int conflicting_clause)
 			}
 		}
 		p2decision = record_decided_decision.back();
+        //TODO
+        uint32_t target_level = p2decision->variable.decision_level;
+        IS_FirstUIP_RETRY = true;
+        vector<uint32_t>::iterator it;
+        it = find (recorded_backtracking_level.begin(), recorded_backtracking_level.end(), p2decision->variable.decision_level);
+        if (it != recorded_backtracking_level.end()) {
+            //Element found in myvector
+            IS_FirstUIP_RETRY = false;
+        }
+        else {
+            //Element not found in myvector
+#ifdef debug
+                printf("ADD:%d\n",target_level);
+#endif
+            recorded_backtracking_level.push_back(target_level);
+        }
+        //remove all recorded level until target is the last
+        for(uint32_t i = 0;i < recorded_backtracking_level.size();i++){
+            if(target_level < recorded_backtracking_level[i]){
+#ifdef debug
+                printf("ERASE:%d\n",recorded_backtracking_level[i]);
+#endif
+                recorded_backtracking_level.erase(recorded_backtracking_level.begin()+i);
+                i--;
+            }
+        }
+        sort(recorded_backtracking_level.begin(),recorded_backtracking_level.end());
+#ifdef debug
+            printf("TARGET LEVEL = %d\n",target_level);
+            printf("===========================\n");
+            printf("recorded LEVEL seq: ");
+            for(uint32_t i = 0;i < recorded_backtracking_level.size();i++){
+                printf("%d ",recorded_backtracking_level[i]);
+            }
+            printf("\n");
+            printf("===========================\n");
+#endif
+        if( IS_FirstUIP_RETRY ){
+            current_level = p2decision->variable.decision_level;
+            add_decision_queue(p2decision->variable.var_name,p2decision->variable.value,p2decision->mode,p2decision->variable.decision_level,p2decision->variable.decision_clause);
+            free(p2decision);
+            record_decided_decision.pop_back();
+            IS_FirstUIP_RETRY = false;
+        }else
+        {
 		//assign inverse value to target var
 		if (p2decision->mode == DECISION_MODE) { //first conflict
 			if (p2decision->variable.value == VAL_1) {
@@ -606,6 +662,7 @@ static void back_tracking(int conflicting_clause)
 				} else {
 					value = VAL_1;
 				}
+                current_level = record_decided_decision.back()->variable.decision_level;
 				add_decision_queue(record_decided_decision.back()->variable.var_name, value, CONFLICT_MODE, record_decided_decision.back()->variable.decision_level, record_decided_decision.back()->variable.decision_clause);
 			} else {
 				printf("ERROR in back_tracking to wrong mode\n");
@@ -615,6 +672,7 @@ static void back_tracking(int conflicting_clause)
 			printf("ERROR in back_tracking to no corresponding MODE\n");
 			exit(EXIT_FAILURE);
 		}
+        }
 	}
 }
 

@@ -17,7 +17,6 @@ using namespace std;
 #define CONFLICT_MODE                  0xF00//meaning that this is second decision
 #define START_SYMBOL_MODE             0xF000//if there is clause only has one var
 
-bool CONFLICT_IN_ADD_DECISION = false;
 
 #define UNDECIDED_VAR_NAME                -1
 
@@ -117,7 +116,6 @@ static void init_two_watching_literal(uint32_t var_name, uint32_t src_idx, uint3
 static inline void add_decision_queue(uint32_t var_name, int value, int mode, int decision_level, int decision_clause)
 {
 	decision *p2decision;
-	CONFLICT_IN_ADD_DECISION = false;
 	assert(value != VAL_UNASSIGNED);
 	p2decision = (decision*)malloc(sizeof(decision));
 	p2decision->variable.var_name = var_name;
@@ -449,9 +447,62 @@ static inline void back_tracking_CONFLICT(void)
 			} else {
 				value = VAL_1;
 			}
-            //TODO: use IS_FirstUIP_RETRY
+            //TODO:
+        uint32_t target_level = p2decision->variable.decision_level;
+        IS_FirstUIP_RETRY = true;
+        vector<uint32_t>::iterator it;
+        it = find (recorded_backtracking_level.begin(), recorded_backtracking_level.end(), p2decision->variable.decision_level);
+        if (it != recorded_backtracking_level.end()) {
+            //Element found in myvector
+            IS_FirstUIP_RETRY = false;
+        }
+        else {
+            //Element not found in myvector
+#ifdef debug
+                printf("ADD:%d\n",target_level);
+#endif
+            recorded_backtracking_level.push_back(target_level);
+        }
+        //remove all recorded level until target is the last
+        for(uint32_t i = 0;i < recorded_backtracking_level.size();i++){
+            if(target_level < recorded_backtracking_level[i]){
+#ifdef debug
+                printf("ERASE:%d\n",recorded_backtracking_level[i]);
+#endif
+                recorded_backtracking_level.erase(recorded_backtracking_level.begin()+i);
+                i--;
+            }
+        }
+        sort(recorded_backtracking_level.begin(),recorded_backtracking_level.end());
+#ifdef debug
+            printf("TARGET LEVEL = %d\n",target_level);
+            printf("===========================\n");
+            printf("recorded LEVEL seq: ");
+            for(uint32_t i = 0;i < recorded_backtracking_level.size();i++){
+                printf("%d ",recorded_backtracking_level[i]);
+            }
+            printf("\n");
+            printf("===========================\n");
+#endif
+            if(IS_FirstUIP_RETRY){
+                current_level = p2decision->variable.decision_level;
+                add_decision_queue(p2decision->variable.var_name,p2decision->variable.value,p2decision->mode,p2decision->variable.decision_level,p2decision->variable.decision_clause);
+                free(p2decision);
+                record_decided_decision.pop_back();
+            }else{
+			    if (p2decision->variable.value == VAL_1) {
+				    value = VAL_0;
+			    } else {
+				    value = VAL_1;
+			    }
+			    current_level = p2decision->variable.decision_level;
+			    add_decision_queue(p2decision->variable.var_name, value, CONFLICT_MODE, p2decision->variable.decision_level, p2decision->variable.decision_clause);
+            }
+            //end new
+            /*
             current_level = record_decided_decision.back()->variable.decision_level;
 			add_decision_queue(record_decided_decision.back()->variable.var_name, value, CONFLICT_MODE, record_decided_decision.back()->variable.decision_level, record_decided_decision.back()->variable.decision_clause);
+            */
 			return;
 		} else {
 			end_solving = true;
@@ -734,10 +785,16 @@ static void update_two_watching_literal(decision *p2decision)
 			} else {
 				value = VAL_0;
 			}
-			add_decision_queue(the_other_watched_var, value, UNIQUE_MODE, current_level, current_clause);
-			if (CONFLICT_IN_ADD_DECISION) {
-				return;
-			}
+            //TODO: fix the wrong assignment to already exist var
+            if(var_table[the_other_watched_var].value != VAL_UNASSIGNED) {
+                if(var_table[the_other_watched_var].value == value){
+                    continue;
+                }else {
+                    back_tracking(current_clause);
+                }
+            }else {
+			    add_decision_queue(the_other_watched_var, value, UNIQUE_MODE, current_level, current_clause);
+            }
 		} else { //case 4(conflict)
 			if (record_decided_decision.back()->mode == CONFLICT_MODE) { //second conflict
 				back_tracking(current_clause);

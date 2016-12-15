@@ -28,7 +28,7 @@ gdb: $(EXENAME)
 	gdbtui -x gdb.txt --args  ./yasat benchmarks/Sample_benchmarks_for_Milestone_2/aim-50-1_6-yes1-1.cnf
 
 gdb_2: $(EXENAME)
-	gdbtui -x gdb_2.txt --args  ./yasat benchmarks/uf_SAT/uf20-04.cnf
+	gdbtui -x gdb.txt --args  ./yasat benchmarks/uf_SAT/uf100-0542.cnf
 
 
 # The "phony" `clean' compilation target.  Type `make clean' to remove

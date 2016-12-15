@@ -73,33 +73,28 @@ void build_var_table(void)
 				var_table[var_pos].value = VAL_UNASSIGNED;
 				var_table[var_pos].decision_level = LEVEL_UNASSIGNED;
 				var_table[var_pos].decision_clause = CLAUSE_UNASSIGNED;
-                var_table[var_pos].VSIDS_count = VSIDS_INIT;
+				var_table[var_pos].VSIDS_count = VSIDS_INIT;
 			}
 		}
 	}
 }
 
-static inline void update_VSIDS_counter(int var_name,int mode)
+static inline void update_VSIDS_counter(int var_name, int mode)
 {
-    assert(var_name != UNDECIDED_VAR_NAME);
-    assert(var_name >= 0);
-    if(mode == VSIDS_UPDATE_ADD)
-    {
-        var_table[var_name].VSIDS_count++;
-    }else if(mode == VSIDS_UPDATE_DELETE)
-    {
-        if(var_table[var_name].VSIDS_count >= 1)
-        {
-            var_table[var_name].VSIDS_count--;
-        }else
-        {
-            var_table[var_name].VSIDS_count = VSIDS_INIT;
-        }
-    }else
-    {
-        printf("error in update VSIDS\n");
-        exit(EXIT_FAILURE);
-    }
+	assert(var_name != UNDECIDED_VAR_NAME);
+	assert(var_name >= 0);
+	if (mode == VSIDS_UPDATE_ADD) {
+		var_table[var_name].VSIDS_count++;
+	} else if (mode == VSIDS_UPDATE_DELETE) {
+		if (var_table[var_name].VSIDS_count >= 1) {
+			var_table[var_name].VSIDS_count--;
+		} else {
+			var_table[var_name].VSIDS_count = VSIDS_INIT;
+		}
+	} else {
+		printf("error in update VSIDS\n");
+		exit(EXIT_FAILURE);
+	}
 }
 
 static void init_two_watching_literal(uint32_t var_name, uint32_t src_idx, uint32_t clause_idx)
@@ -110,7 +105,7 @@ static void init_two_watching_literal(uint32_t var_name, uint32_t src_idx, uint3
 	if (input_clause[clause_idx][src_idx] < 0) {
 		var_negative_watched_clause_table[var_name].push_back(clause_idx);
 	}
-    update_VSIDS_counter(var_name,VSIDS_UPDATE_ADD);
+	update_VSIDS_counter(var_name, VSIDS_UPDATE_ADD);
 }
 
 static inline void add_decision_queue(uint32_t var_name, int value, int mode, int decision_level, int decision_clause)
@@ -189,30 +184,30 @@ static bool make_decision(void)
 	if (end_solving) {
 		return false;
 	}
-    available_vars.clear();
+	available_vars.clear();
 	for (int i = (int)start_var_table_idx; i < (int)end_var_table_idx; i++) {
 		//unassigned
 		if (var_table[i].value == VAL_UNASSIGNED) {
 			//unassigned + watched
 			if ((var_postive_watched_clause_table[i].size() + var_negative_watched_clause_table[i].size()) > 0) {
-                available_vars.push_back(var_table[i].var_name);
+				available_vars.push_back(var_table[i].var_name);
 			}
 		}
 	}
-    uint32_t max_VSIDS = 0;
-    int max_VSIDS_idx = 0;
-    if(!available_vars.empty()) {
-        for(uint32_t i = 0;i < available_vars.size();i++) {
-            if(var_table[available_vars[i]].VSIDS_count >= max_VSIDS) {
-                max_VSIDS = var_table[available_vars[i]].VSIDS_count;
-                max_VSIDS_idx = i;
-            }
-        }
-        var = available_vars[max_VSIDS_idx];
-	    if (first_decision_var == MAGIC_DECISION) {
-		    first_decision_var = var;//if back track to this var,UNSAT
-	    }
-    }
+	uint32_t max_VSIDS = 0;
+	int max_VSIDS_idx = 0;
+	if (!available_vars.empty()) {
+		for (uint32_t i = 0; i < available_vars.size(); i++) {
+			if (var_table[available_vars[i]].VSIDS_count >= max_VSIDS) {
+				max_VSIDS = var_table[available_vars[i]].VSIDS_count;
+				max_VSIDS_idx = i;
+			}
+		}
+		var = available_vars[max_VSIDS_idx];
+		if (first_decision_var == MAGIC_DECISION) {
+			first_decision_var = var;//if back track to this var,UNSAT
+		}
+	}
 	if (var == UNDECIDED_VAR_NAME) {
 		return false;
 	}
@@ -447,62 +442,61 @@ static inline void back_tracking_CONFLICT(void)
 			} else {
 				value = VAL_1;
 			}
-            //TODO:
-        uint32_t target_level = p2decision->variable.decision_level;
-        IS_FirstUIP_RETRY = true;
-        vector<uint32_t>::iterator it;
-        it = find (recorded_backtracking_level.begin(), recorded_backtracking_level.end(), p2decision->variable.decision_level);
-        if (it != recorded_backtracking_level.end()) {
-            //Element found in myvector
-            IS_FirstUIP_RETRY = false;
-        }
-        else {
-            //Element not found in myvector
+			//TODO:
+			uint32_t target_level = p2decision->variable.decision_level;
+			IS_FirstUIP_RETRY = true;
+			vector<uint32_t>::iterator it;
+			it = find(recorded_backtracking_level.begin(), recorded_backtracking_level.end(), p2decision->variable.decision_level);
+			if (it != recorded_backtracking_level.end()) {
+				//Element found in myvector
+				IS_FirstUIP_RETRY = false;
+			} else {
+				//Element not found in myvector
 #ifdef debug
-                printf("ADD:%d\n",target_level);
+				printf("ADD:%d\n", target_level);
 #endif
-            recorded_backtracking_level.push_back(target_level);
-        }
-        //remove all recorded level until target is the last
-        for(uint32_t i = 0;i < recorded_backtracking_level.size();i++){
-            if(target_level < recorded_backtracking_level[i]){
+				recorded_backtracking_level.push_back(target_level);
+			}
+			//remove all recorded level until target is the last
+			for (uint32_t i = 0; i < recorded_backtracking_level.size(); i++) {
+				if (target_level < recorded_backtracking_level[i]) {
 #ifdef debug
-                printf("ERASE:%d\n",recorded_backtracking_level[i]);
+					printf("ERASE:%d\n", recorded_backtracking_level[i]);
 #endif
-                recorded_backtracking_level.erase(recorded_backtracking_level.begin()+i);
-                i--;
-            }
-        }
-        sort(recorded_backtracking_level.begin(),recorded_backtracking_level.end());
+					recorded_backtracking_level.erase(recorded_backtracking_level.begin() + i);
+					i--;
+				}
+			}
+			sort(recorded_backtracking_level.begin(), recorded_backtracking_level.end());
 #ifdef debug
-            printf("TARGET LEVEL = %d\n",target_level);
-            printf("===========================\n");
-            printf("recorded LEVEL seq: ");
-            for(uint32_t i = 0;i < recorded_backtracking_level.size();i++){
-                printf("%d ",recorded_backtracking_level[i]);
-            }
-            printf("\n");
-            printf("===========================\n");
+			printf("TARGET LEVEL = %d\n", target_level);
+			printf("===========================\n");
+			printf("recorded LEVEL seq: ");
+			for (uint32_t i = 0; i < recorded_backtracking_level.size(); i++) {
+				printf("%d ", recorded_backtracking_level[i]);
+			}
+			printf("\n");
+			printf("===========================\n");
 #endif
-            if(IS_FirstUIP_RETRY){
-                current_level = p2decision->variable.decision_level;
-                add_decision_queue(p2decision->variable.var_name,p2decision->variable.value,p2decision->mode,p2decision->variable.decision_level,p2decision->variable.decision_clause);
-                free(p2decision);
-                record_decided_decision.pop_back();
-            }else{
-			    if (p2decision->variable.value == VAL_1) {
-				    value = VAL_0;
-			    } else {
-				    value = VAL_1;
-			    }
-			    current_level = p2decision->variable.decision_level;
-			    add_decision_queue(p2decision->variable.var_name, value, CONFLICT_MODE, p2decision->variable.decision_level, p2decision->variable.decision_clause);
-            }
-            //end new
-            /*
-            current_level = record_decided_decision.back()->variable.decision_level;
+			if (IS_FirstUIP_RETRY) {
+				current_level = p2decision->variable.decision_level;
+				add_decision_queue(p2decision->variable.var_name, p2decision->variable.value, p2decision->mode, p2decision->variable.decision_level, p2decision->variable.decision_clause);
+				free(p2decision);
+				record_decided_decision.pop_back();
+			} else {
+				if (p2decision->variable.value == VAL_1) {
+					value = VAL_0;
+				} else {
+					value = VAL_1;
+				}
+				current_level = p2decision->variable.decision_level;
+				add_decision_queue(p2decision->variable.var_name, value, CONFLICT_MODE, p2decision->variable.decision_level, p2decision->variable.decision_clause);
+			}
+			//end new
+			/*
+			current_level = record_decided_decision.back()->variable.decision_level;
 			add_decision_queue(record_decided_decision.back()->variable.var_name, value, CONFLICT_MODE, record_decided_decision.back()->variable.decision_level, record_decided_decision.back()->variable.decision_clause);
-            */
+			*/
 			return;
 		} else {
 			end_solving = true;
@@ -514,7 +508,7 @@ static inline void back_tracking_CONFLICT(void)
 static void back_tracking(int conflicting_clause)
 {
 #ifdef debug
-	printf("conflict var:%d , value:%d \n",record_decided_decision.back()->variable.var_name,record_decided_decision.back()->variable.value);
+	printf("conflict var:%d , value:%d \n", record_decided_decision.back()->variable.var_name, record_decided_decision.back()->variable.value);
 #endif
 	int level = current_level;
 	int max_level = MAGIC_LEVEL;
@@ -538,8 +532,8 @@ static void back_tracking(int conflicting_clause)
 		}
 	}
 #ifdef debug
-    printf("backtracking to LEVEL = %d\n",max_level);
-    int debug_level = max_level;
+	printf("backtracking to LEVEL = %d\n", max_level);
+	int debug_level = max_level;
 #endif
 	for (uint32_t j = 0; j < decision_queue.size(); j++) {
 		free(decision_queue[j]);
@@ -560,21 +554,21 @@ static void back_tracking(int conflicting_clause)
 		current_level = START_LEVEL;
 		add_watching_literal_for_clause(input_clause.size() - 1);
 		first_decision_var = MAGIC_DECISION;
-        recorded_backtracking_level.clear();
+		recorded_backtracking_level.clear();
 	} else { /*back track to max_level */
 		/*remove the learned_clause*/
 		if (NO_learned_clause) {
 			input_clause.back().clear();
 			input_clause.pop_back();
-		}else{
+		} else {
 #ifdef debug
-            printf("Learned clause: ");
-            for(uint32_t i = 0;i < input_clause.back().size();i++){
-                printf("%d ",input_clause[input_clause.size()-1][i]);
-            }
-            printf("\n");
+			printf("Learned clause: ");
+			for (uint32_t i = 0; i < input_clause.back().size(); i++) {
+				printf("%d ", input_clause[input_clause.size() - 1][i]);
+			}
+			printf("\n");
 #endif
-        }
+		}
 
 		p2decision = record_decided_decision.back();
 		if (max_level != p2decision->variable.decision_level) {
@@ -632,98 +626,96 @@ static void back_tracking(int conflicting_clause)
 			}
 		}
 		p2decision = record_decided_decision.back();
-        //TODO
-        uint32_t target_level = p2decision->variable.decision_level;
-        IS_FirstUIP_RETRY = true;
-        vector<uint32_t>::iterator it;
-        it = find (recorded_backtracking_level.begin(), recorded_backtracking_level.end(), p2decision->variable.decision_level);
-        if (it != recorded_backtracking_level.end()) {
-            //Element found in myvector
-            IS_FirstUIP_RETRY = false;
-        }
-        else {
-            //Element not found in myvector
+		//TODO
+		uint32_t target_level = p2decision->variable.decision_level;
+		IS_FirstUIP_RETRY = true;
+		vector<uint32_t>::iterator it;
+		it = find(recorded_backtracking_level.begin(), recorded_backtracking_level.end(), p2decision->variable.decision_level);
+		if (it != recorded_backtracking_level.end()) {
+			//Element found in myvector
+			IS_FirstUIP_RETRY = false;
+		} else {
+			//Element not found in myvector
 #ifdef debug
-                printf("ADD:%d\n",target_level);
+			printf("ADD:%d\n", target_level);
 #endif
-            recorded_backtracking_level.push_back(target_level);
-        }
-        //remove all recorded level until target is the last
-        for(uint32_t i = 0;i < recorded_backtracking_level.size();i++){
-            if(target_level < recorded_backtracking_level[i]){
+			recorded_backtracking_level.push_back(target_level);
+		}
+		//remove all recorded level until target is the last
+		for (uint32_t i = 0; i < recorded_backtracking_level.size(); i++) {
+			if (target_level < recorded_backtracking_level[i]) {
 #ifdef debug
-                printf("ERASE:%d\n",recorded_backtracking_level[i]);
+				printf("ERASE:%d\n", recorded_backtracking_level[i]);
 #endif
-                recorded_backtracking_level.erase(recorded_backtracking_level.begin()+i);
-                i--;
-            }
-        }
-        sort(recorded_backtracking_level.begin(),recorded_backtracking_level.end());
-#ifdef debug
-            printf("TARGET LEVEL = %d\n",target_level);
-            printf("===========================\n");
-            printf("recorded LEVEL seq: ");
-            for(uint32_t i = 0;i < recorded_backtracking_level.size();i++){
-                printf("%d ",recorded_backtracking_level[i]);
-            }
-            printf("\n");
-            printf("===========================\n");
-#endif
-        if( IS_FirstUIP_RETRY ){
-            current_level = p2decision->variable.decision_level;
-            add_decision_queue(p2decision->variable.var_name,p2decision->variable.value,p2decision->mode,p2decision->variable.decision_level,p2decision->variable.decision_clause);
-            free(p2decision);
-            record_decided_decision.pop_back();
-            IS_FirstUIP_RETRY = false;
-        }else
-        {
-		//assign inverse value to target var
-		if (p2decision->mode == DECISION_MODE) { //first conflict
-			if (p2decision->variable.value == VAL_1) {
-				value = VAL_0;
-			} else {
-				value = VAL_1;
+				recorded_backtracking_level.erase(recorded_backtracking_level.begin() + i);
+				i--;
 			}
+		}
+		sort(recorded_backtracking_level.begin(), recorded_backtracking_level.end());
+#ifdef debug
+		printf("TARGET LEVEL = %d\n", target_level);
+		printf("===========================\n");
+		printf("recorded LEVEL seq: ");
+		for (uint32_t i = 0; i < recorded_backtracking_level.size(); i++) {
+			printf("%d ", recorded_backtracking_level[i]);
+		}
+		printf("\n");
+		printf("===========================\n");
+#endif
+		if (IS_FirstUIP_RETRY) {
 			current_level = p2decision->variable.decision_level;
-			add_decision_queue(p2decision->variable.var_name, value, CONFLICT_MODE, p2decision->variable.decision_level, p2decision->variable.decision_clause);
-		} else if (p2decision->mode == CONFLICT_MODE) { //second conflict
-			if (p2decision->variable.var_name == first_decision_var) {
-				end_solving = true;
-				return;
-			} else {
-				back_tracking_CONFLICT();
-			}
-		} else if (p2decision->mode == UNIQUE_MODE) { //unique conflict
-			//undo until other mode
-			undo_var(p2decision->variable.var_name);
+			add_decision_queue(p2decision->variable.var_name, p2decision->variable.value, p2decision->mode, p2decision->variable.decision_level, p2decision->variable.decision_clause);
 			free(p2decision);
 			record_decided_decision.pop_back();
-			p2decision = record_decided_decision.back();
-			while (p2decision->mode == UNIQUE_MODE) {
-				undo_var(p2decision->variable.var_name);
-				free(p2decision);
-				record_decided_decision.pop_back();
-				p2decision = record_decided_decision.back();
-			}
-			if (p2decision->mode == CONFLICT_MODE) {
-				back_tracking_CONFLICT();
-			} else if (p2decision->mode == DECISION_MODE) {
+			IS_FirstUIP_RETRY = false;
+		} else {
+			//assign inverse value to target var
+			if (p2decision->mode == DECISION_MODE) { //first conflict
 				if (p2decision->variable.value == VAL_1) {
 					value = VAL_0;
 				} else {
 					value = VAL_1;
 				}
-                current_level = record_decided_decision.back()->variable.decision_level;
-				add_decision_queue(record_decided_decision.back()->variable.var_name, value, CONFLICT_MODE, record_decided_decision.back()->variable.decision_level, record_decided_decision.back()->variable.decision_clause);
-			} else {
-				printf("ERROR in back_tracking to wrong mode\n");
+				current_level = p2decision->variable.decision_level;
+				add_decision_queue(p2decision->variable.var_name, value, CONFLICT_MODE, p2decision->variable.decision_level, p2decision->variable.decision_clause);
+			} else if (p2decision->mode == CONFLICT_MODE) { //second conflict
+				if (p2decision->variable.var_name == first_decision_var) {
+					end_solving = true;
+					return;
+				} else {
+					back_tracking_CONFLICT();
+				}
+			} else if (p2decision->mode == UNIQUE_MODE) { //unique conflict
+				//undo until other mode
+				undo_var(p2decision->variable.var_name);
+				free(p2decision);
+				record_decided_decision.pop_back();
+				p2decision = record_decided_decision.back();
+				while (p2decision->mode == UNIQUE_MODE) {
+					undo_var(p2decision->variable.var_name);
+					free(p2decision);
+					record_decided_decision.pop_back();
+					p2decision = record_decided_decision.back();
+				}
+				if (p2decision->mode == CONFLICT_MODE) {
+					back_tracking_CONFLICT();
+				} else if (p2decision->mode == DECISION_MODE) {
+					if (p2decision->variable.value == VAL_1) {
+						value = VAL_0;
+					} else {
+						value = VAL_1;
+					}
+					current_level = record_decided_decision.back()->variable.decision_level;
+					add_decision_queue(record_decided_decision.back()->variable.var_name, value, CONFLICT_MODE, record_decided_decision.back()->variable.decision_level, record_decided_decision.back()->variable.decision_clause);
+				} else {
+					printf("ERROR in back_tracking to wrong mode\n");
+					exit(EXIT_FAILURE);
+				}
+			} else { //FirstUIP this will never get into this situation
+				printf("ERROR in back_tracking to no corresponding MODE\n");
 				exit(EXIT_FAILURE);
 			}
-		} else { //FirstUIP this will never get into this situation
-			printf("ERROR in back_tracking to no corresponding MODE\n");
-			exit(EXIT_FAILURE);
 		}
-        }
 	}
 }
 
@@ -768,10 +760,10 @@ static void update_two_watching_literal(decision *p2decision)
 			} else {
 				var_negative_watched_clause_table[new_watched_var].push_back(current_clause);
 			}
-            update_VSIDS_counter(new_watched_var,VSIDS_UPDATE_ADD);
+			update_VSIDS_counter(new_watched_var, VSIDS_UPDATE_ADD);
 			//remove the old watched var from the clause
 			need_new_decision_clause_list->erase(need_new_decision_clause_list->begin() + i);
-            update_VSIDS_counter(p2decision->variable.var_name,VSIDS_UPDATE_DELETE);
+			update_VSIDS_counter(p2decision->variable.var_name, VSIDS_UPDATE_DELETE);
 			i--;//due to remove one clause,the idx need to remain same;
 			loop_size = (uint32_t)need_new_decision_clause_list->size();//update loop size
 
@@ -785,16 +777,16 @@ static void update_two_watching_literal(decision *p2decision)
 			} else {
 				value = VAL_0;
 			}
-            //TODO: fix the wrong assignment to already exist var
-            if(var_table[the_other_watched_var].value != VAL_UNASSIGNED) {
-                if(var_table[the_other_watched_var].value == value){
-                    continue;
-                }else {
-                    back_tracking(current_clause);
-                }
-            }else {
-			    add_decision_queue(the_other_watched_var, value, UNIQUE_MODE, current_level, current_clause);
-            }
+			//TODO: fix the wrong assignment to already exist var
+			if (var_table[the_other_watched_var].value != VAL_UNASSIGNED) {
+				if (var_table[the_other_watched_var].value == value) {
+					continue;
+				} else {
+					back_tracking(current_clause);
+				}
+			} else {
+				add_decision_queue(the_other_watched_var, value, UNIQUE_MODE, current_level, current_clause);
+			}
 		} else { //case 4(conflict)
 			if (record_decided_decision.back()->mode == CONFLICT_MODE) { //second conflict
 				back_tracking(current_clause);
@@ -827,8 +819,8 @@ static inline void print_result(void)
 			printf("%d ", i);
 		} else if (var_table[i].value == VAL_0) {
 			printf("-%d ", i);
-		} else {// default value for those don't care var
-            printf("%d ",i);
+		} else { // default value for those don't care var
+			printf("%d ", i);
 		}
 	}
 }
@@ -851,7 +843,7 @@ static bool verify_result(void)
 					clause_result = true;
 				}
 			} else { //unassigned
-                //do nothing
+				//do nothing
 			}
 		}
 		if (!clause_result) {
@@ -900,31 +892,31 @@ void solver(void)
 				var_table[p2decision->variable.var_name].decision_level = p2decision->variable.decision_level;
 				var_table[p2decision->variable.var_name].decision_clause = p2decision->variable.decision_clause;
 #ifdef debug
-                if(p2decision->variable.value == VAL_0){
-                    printf("VAR: -%d ",p2decision->variable.var_name);
-                }else {
-                    printf("VAR: %d ",p2decision->variable.var_name);
-                }
-                int mode = p2decision->mode;
-                switch(mode){
-                    case UNIQUE_MODE:
-                        printf(" UNIQUE_MODE");
-                        break;
-                    case DECISION_MODE:
-                        printf(" DECISION_MODE");
-                        break;
-                    case CONFLICT_MODE:
-                        printf(" CONFLICT_MODE");
-                        break;
-                    case START_SYMBOL_MODE:
-                        printf(" START_SYMBOL_MODE");
-                        break;
-                    default:
-                        printf("MODE ERROR");
-                        exit(EXIT_FAILURE);
-                }
-                printf(" LEVEL: %d ",p2decision->variable.decision_level);
-                printf(" CLAUSE: %d \n", p2decision->variable.decision_clause);
+				if (p2decision->variable.value == VAL_0) {
+					printf("VAR: -%d ", p2decision->variable.var_name);
+				} else {
+					printf("VAR: %d ", p2decision->variable.var_name);
+				}
+				int mode = p2decision->mode;
+				switch (mode) {
+				case UNIQUE_MODE:
+					printf(" UNIQUE_MODE");
+					break;
+				case DECISION_MODE:
+					printf(" DECISION_MODE");
+					break;
+				case CONFLICT_MODE:
+					printf(" CONFLICT_MODE");
+					break;
+				case START_SYMBOL_MODE:
+					printf(" START_SYMBOL_MODE");
+					break;
+				default:
+					printf("MODE ERROR");
+					exit(EXIT_FAILURE);
+				}
+				printf(" LEVEL: %d ", p2decision->variable.decision_level);
+				printf(" CLAUSE: %d \n", p2decision->variable.decision_clause);
 #endif
 				update_two_watching_literal(p2decision);
 			}
@@ -934,22 +926,22 @@ void solver(void)
 
 void preprocess_input(void)
 {
-    vector<int>::iterator p2var;
-    vector<int> removed_list;
-    for(uint32_t i = 0;i < input_clause.size();i++) {
-        removed_list.clear();
-        for(uint32_t j = 1;j < input_clause[i].size();j++) {
-            //first var never duplicate,start from second
-            p2var = find(input_clause[i].begin(),input_clause[i].begin()+j,input_clause[i][j]);
-            if(p2var != input_clause[i].begin()+j) {//find duplicate var
-                removed_list.push_back(*p2var);
-                input_clause[i].erase(p2var);
-                j--;
-            }
-        }
-        //if there is same var but different value in one clause:UNSAT
-        //not dealed yet
-    }
+	vector<int>::iterator p2var;
+	vector<int> removed_list;
+	for (uint32_t i = 0; i < input_clause.size(); i++) {
+		removed_list.clear();
+		for (uint32_t j = 1; j < input_clause[i].size(); j++) {
+			//first var never duplicate,start from second
+			p2var = find(input_clause[i].begin(), input_clause[i].begin() + j, input_clause[i][j]);
+			if (p2var != input_clause[i].begin() + j) { //find duplicate var
+				removed_list.push_back(*p2var);
+				input_clause[i].erase(p2var);
+				j--;
+			}
+		}
+		//if there is same var but different value in one clause:UNSAT
+		//not dealed yet
+	}
 }
 
 int main(int argc, char *argv[])
@@ -958,8 +950,8 @@ int main(int argc, char *argv[])
 	int max_name;
 	parse_DIMACS_CNF(input_clause, max_name, argv[1]);
 	max_var_name = (uint32_t)max_name;
-    /*remove duplicated same var more than one in same clause*/
-    preprocess_input();
+	/*remove duplicated same var more than one in same clause*/
+	preprocess_input();
 	/*build var_table for management*/
 	build_var_table();
 	/*traverse all clause to initialize the initial two watched var for each and unique decision*/

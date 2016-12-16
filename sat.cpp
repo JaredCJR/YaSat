@@ -425,6 +425,10 @@ static inline void back_tracking_CONFLICT(void)
 	while (!record_decided_decision.empty()) {
 		p2decision = record_decided_decision.back();
 		if (p2decision->mode == CONFLICT_MODE) {
+            if(p2decision->variable.var_name == first_decision_var){
+                end_solving = true;
+                break;
+            }
 			/*undo the conflict var*/
 			undo_var(p2decision->variable.var_name);
 			free(p2decision);
@@ -783,6 +787,7 @@ static void update_two_watching_literal(decision *p2decision)
 					continue;
 				} else {
 					back_tracking(current_clause);
+                    return;
 				}
 			} else {
 				add_decision_queue(the_other_watched_var, value, UNIQUE_MODE, current_level, current_clause);
@@ -863,7 +868,6 @@ static bool verify_result(void)
 
 void solver(void)
 {
-	srand(time(NULL));
 	decision *p2decision;
 	while (1) {
 		if (decision_queue.empty()) {
@@ -930,6 +934,7 @@ void preprocess_input(void)
 	vector<int> removed_list;
 	for (uint32_t i = 0; i < input_clause.size(); i++) {
 		removed_list.clear();
+        //remove duplicate var in the same clause
 		for (uint32_t j = 1; j < input_clause[i].size(); j++) {
 			//first var never duplicate,start from second
 			p2var = find(input_clause[i].begin(), input_clause[i].begin() + j, input_clause[i][j]);
@@ -940,7 +945,16 @@ void preprocess_input(void)
 			}
 		}
 		//if there is same var but different value in one clause:UNSAT
-		//not dealed yet
+        for(uint32_t j = 1;j < input_clause[i].size();j++){
+            for(uint32_t k = 0;k < j; k++){
+                if( abs(input_clause[i][k])==abs(input_clause[i][j]) ){
+                    if(input_clause[i][k] != input_clause[i][j]){
+                        //UNSAT
+                        end_solving = true;
+                    }
+                }
+            }
+        }
 	}
 }
 
